@@ -54,83 +54,88 @@ if len(st.session_state.get('datasets', {})) >= 2:
     
     # ===== BAR CHART =====
     with chart_tab1:
-        st.write("**Record Count Comparison**")
+        st.write("**Company Count Comparison**")
         
-        # Count by numeric columns
-        numeric_cols_1 = df1.select_dtypes(include=[np.number]).columns.tolist()
-        numeric_cols_2 = df2.select_dtypes(include=[np.number]).columns.tolist()
+        fig, ax = plt.subplots(figsize=(12, 5))
         
-        if numeric_cols_1 and numeric_cols_2:
-            col_compare = st.selectbox(
-                "Select numeric column for aggregation",
-                list(set(numeric_cols_1) & set(numeric_cols_2)),
-                key="bar_col"
-            )
-            
-            fig, ax = plt.subplots(figsize=(12, 5))
-            
-            # Aggregate data
-            agg_data1 = df1[col_compare].sum()
-            agg_data2 = df2[col_compare].sum()
-            
-            categories = [dataset1_name[:15], dataset2_name[:15]]
-            values = [agg_data1, agg_data2]
-            colors = ['#1f77b4', '#ff7f0e']
-            
-            bars = ax.bar(categories, values, color=colors, alpha=0.7, edgecolor='black', linewidth=2)
-            ax.set_ylabel('Sum Value', fontsize=12, fontweight='bold')
-            ax.set_title(f'Sum of {col_compare} - Comparison', fontsize=14, fontweight='bold')
-            ax.grid(axis='y', alpha=0.3)
-            
-            # Add value labels on bars
-            for bar in bars:
-                height = bar.get_height()
-                ax.text(bar.get_x() + bar.get_width()/2., height,
-                        f'{height:,.0f}', ha='center', va='bottom', fontweight='bold')
-            
-            st.pyplot(fig)
-        else:
-            st.warning("No common numeric columns found for comparison")
+        # Count companies in each dataset
+        count1 = len(df1)
+        count2 = len(df2)
+        
+        categories = [dataset1_name[:20], dataset2_name[:20]]
+        values = [count1, count2]
+        colors = ['#1f77b4', '#ff7f0e']
+        
+        bars = ax.bar(categories, values, color=colors, alpha=0.7, edgecolor='black', linewidth=2.5)
+        ax.set_ylabel('Number of Companies', fontsize=12, fontweight='bold')
+        ax.set_title('Total Companies Count - Comparison', fontsize=14, fontweight='bold')
+        ax.grid(axis='y', alpha=0.3)
+        
+        # Add value labels on bars with percentage
+        total = count1 + count2
+        for i, bar in enumerate(bars):
+            height = bar.get_height()
+            percentage = (height / total * 100)
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height)}\n({percentage:.1f}%)', 
+                    ha='center', va='bottom', fontweight='bold', fontsize=11)
+        
+        st.pyplot(fig)
+        
+        # Show metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Dataset 1 Companies", count1)
+        with col2:
+            st.metric("Dataset 2 Companies", count2)
+        with col3:
+            st.metric("Total Companies", count1 + count2)
     
     # ===== LINE CHART =====
     with chart_tab2:
-        st.write("**Column Value Trends**")
+        st.write("**Company Count by Industry**")
         
-        numeric_cols_common = list(set(df1.select_dtypes(include=[np.number]).columns) & 
-                                   set(df2.select_dtypes(include=[np.number]).columns))
-        
-        if numeric_cols_common:
-            selected_cols = st.multiselect(
-                "Select columns to compare",
-                numeric_cols_common,
-                default=numeric_cols_common[:min(2, len(numeric_cols_common))],
-                key="line_cols"
-            )
+        if 'industry' in df1.columns and 'industry' in df2.columns:
+            # Get top industries
+            top_industries_1 = df1['industry'].value_counts().head(10).index.tolist()
+            top_industries_2 = df2['industry'].value_counts().head(10).index.tolist()
+            all_industries = sorted(list(set(top_industries_1 + top_industries_2)))
             
-            if selected_cols:
-                fig, ax = plt.subplots(figsize=(12, 5))
-                
-                x_pos = np.arange(len(selected_cols))
-                
-                values1 = [df1[col].mean() for col in selected_cols]
-                values2 = [df2[col].mean() for col in selected_cols]
-                
-                ax.plot(x_pos, values1, marker='o', linewidth=2.5, markersize=8, 
-                       label=dataset1_name[:15], color='#1f77b4')
-                ax.plot(x_pos, values2, marker='s', linewidth=2.5, markersize=8, 
-                       label=dataset2_name[:15], color='#ff7f0e')
-                
-                ax.set_xlabel('Columns', fontsize=12, fontweight='bold')
-                ax.set_ylabel('Average Value', fontsize=12, fontweight='bold')
-                ax.set_title('Average Values Comparison', fontsize=14, fontweight='bold')
-                ax.set_xticks(x_pos)
-                ax.set_xticklabels([col[:10] for col in selected_cols], rotation=45)
-                ax.legend(fontsize=11)
-                ax.grid(True, alpha=0.3)
-                
-                st.pyplot(fig)
+            fig, ax = plt.subplots(figsize=(14, 6))
+            
+            # Count companies by industry for both datasets
+            counts1 = [df1[df1['industry'] == ind].shape[0] for ind in all_industries]
+            counts2 = [df2[df2['industry'] == ind].shape[0] for ind in all_industries]
+            
+            x_pos = np.arange(len(all_industries))
+            
+            ax.plot(x_pos, counts1, marker='o', linewidth=2.5, markersize=10, 
+                   label=dataset1_name[:20], color='#1f77b4')
+            ax.plot(x_pos, counts2, marker='s', linewidth=2.5, markersize=10, 
+                   label=dataset2_name[:20], color='#ff7f0e')
+            
+            ax.set_xlabel('Industry', fontsize=12, fontweight='bold')
+            ax.set_ylabel('Company Count', fontsize=12, fontweight='bold')
+            ax.set_title('Company Count by Industry - Comparison', fontsize=14, fontweight='bold')
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels([ind[:15] for ind in all_industries], rotation=45, ha='right')
+            ax.legend(fontsize=11, loc='best')
+            ax.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+            
+            # Show industry comparison table
+            st.write("**Industry Breakdown**")
+            industry_comparison = pd.DataFrame({
+                dataset1_name[:20]: [df1[df1['industry'] == ind].shape[0] for ind in all_industries],
+                dataset2_name[:20]: [df2[df2['industry'] == ind].shape[0] for ind in all_industries],
+                'Difference': [df1[df1['industry'] == ind].shape[0] - df2[df2['industry'] == ind].shape[0] for ind in all_industries]
+            }, index=all_industries)
+            
+            st.dataframe(industry_comparison, use_container_width=True)
         else:
-            st.warning("No numeric columns found for trend analysis")
+            st.warning("Industry column not found in datasets")
     
     # ===== PIE CHART =====
     with chart_tab3:
